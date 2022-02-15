@@ -482,7 +482,7 @@ SafeConstructor.add_constructor(None,
 class FullConstructor(SafeConstructor):
     # 'extend' is blacklisted because it is used by
     # construct_python_object_apply to add `listitems` to a newly generate
-    # python instance
+    # src instance
     def get_state_keys_blacklist(self):
         return ['^extend$', '^__.*__$']
 
@@ -613,7 +613,7 @@ class FullConstructor(SafeConstructor):
 
     def construct_python_object(self, suffix, node):
         # Format:
-        #   !!python/object:module.name { ... state ... }
+        #   !!src/object:module.name { ... state ... }
         instance = self.make_python_instance(suffix, node, newobj=True)
         yield instance
         deep = hasattr(instance, '__setstate__')
@@ -622,15 +622,15 @@ class FullConstructor(SafeConstructor):
 
     def construct_python_object_apply(self, suffix, node, newobj=False):
         # Format:
-        #   !!python/object/apply       # (or !!python/object/new)
+        #   !!src/object/apply       # (or !!src/object/new)
         #   args: [ ... arguments ... ]
         #   kwds: { ... keywords ... }
         #   state: ... state ...
         #   listitems: [ ... listitems ... ]
         #   dictitems: { ... dictitems ... }
         # or short format:
-        #   !!python/object/apply [ ... arguments ... ]
-        # The difference between !!python/object/apply and !!python/object/new
+        #   !!src/object/apply [ ... arguments ... ]
+        # The difference between !!src/object/apply and !!src/object/new
         # is how an object is created, check make_python_instance for details.
         if isinstance(node, SequenceNode):
             args = self.construct_sequence(node, deep=True)
@@ -659,55 +659,55 @@ class FullConstructor(SafeConstructor):
         return self.construct_python_object_apply(suffix, node, newobj=True)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/none',
+    'tag:yaml.org,2002:src/none',
     FullConstructor.construct_yaml_null)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/bool',
+    'tag:yaml.org,2002:src/bool',
     FullConstructor.construct_yaml_bool)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/str',
+    'tag:yaml.org,2002:src/str',
     FullConstructor.construct_python_str)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/unicode',
+    'tag:yaml.org,2002:src/unicode',
     FullConstructor.construct_python_unicode)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/bytes',
+    'tag:yaml.org,2002:src/bytes',
     FullConstructor.construct_python_bytes)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/int',
+    'tag:yaml.org,2002:src/int',
     FullConstructor.construct_yaml_int)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/long',
+    'tag:yaml.org,2002:src/long',
     FullConstructor.construct_python_long)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/float',
+    'tag:yaml.org,2002:src/float',
     FullConstructor.construct_yaml_float)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/complex',
+    'tag:yaml.org,2002:src/complex',
     FullConstructor.construct_python_complex)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/list',
+    'tag:yaml.org,2002:src/list',
     FullConstructor.construct_yaml_seq)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/tuple',
+    'tag:yaml.org,2002:src/tuple',
     FullConstructor.construct_python_tuple)
 
 FullConstructor.add_constructor(
-    'tag:yaml.org,2002:python/dict',
+    'tag:yaml.org,2002:src/dict',
     FullConstructor.construct_yaml_map)
 
 FullConstructor.add_multi_constructor(
-    'tag:yaml.org,2002:python/name:',
+    'tag:yaml.org,2002:src/name:',
     FullConstructor.construct_python_name)
 
 class UnsafeConstructor(FullConstructor):
@@ -727,19 +727,19 @@ class UnsafeConstructor(FullConstructor):
             instance, state, unsafe=True)
 
 UnsafeConstructor.add_multi_constructor(
-    'tag:yaml.org,2002:python/module:',
+    'tag:yaml.org,2002:src/module:',
     UnsafeConstructor.construct_python_module)
 
 UnsafeConstructor.add_multi_constructor(
-    'tag:yaml.org,2002:python/object:',
+    'tag:yaml.org,2002:src/object:',
     UnsafeConstructor.construct_python_object)
 
 UnsafeConstructor.add_multi_constructor(
-    'tag:yaml.org,2002:python/object/new:',
+    'tag:yaml.org,2002:src/object/new:',
     UnsafeConstructor.construct_python_object_new)
 
 UnsafeConstructor.add_multi_constructor(
-    'tag:yaml.org,2002:python/object/apply:',
+    'tag:yaml.org,2002:src/object/apply:',
     UnsafeConstructor.construct_python_object_apply)
 
 # Constructor is same as UnsafeConstructor. Need to leave this in place in case

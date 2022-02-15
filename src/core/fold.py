@@ -3,19 +3,16 @@ import os
 import logging
 import re
 import shutil
-import sys
 
-from python.packages import yaml
+import yaml
 
-from constant import (
-    DEFAULT_PROJECT_PATH as _DEFAULT_PROJECT_PATH,
-    WORKFLOW_DIRECTORY_NAME as _WORKFLOW, VersionType, DEFAULT_EXTENSIONS, SEQ_FORMAT, ALL_FOOTAGE_TYPES,
-    VERSION_PATTERN,
+from .constant import (
+    VersionType, DEFAULT_EXTENSIONS, SEQ_FORMAT,
+    VERSION_PATTERN, Location,
 )
 from fileseq import FileSequence, PAD_STYLE_HASH1, findSequencesOnDisk
-from utility import create_symlink, TaskThreader, is_sym_link
-
-_log = logging.getLogger("Fold")
+from src.core.utility import create_symlink, TaskThreader, is_sym_link, logger, find_available_location
+from src.core import configs
 
 
 class BaseFold(object):
@@ -29,6 +26,8 @@ class BaseFold(object):
         """
         self._name = name
         self._path = path
+        self._local_path = path.replace(configs.UserConfig.central_project_path, configs.UserConfig.local_project_path)
+        self._thumbnail = None
         self._info = dict()
         info_file = os.path.join(path, "info.yaml")
         if os.path.exists(info_file):
@@ -36,7 +35,7 @@ class BaseFold(object):
                 try:
                     self._info = yaml.safe_load(file)
                 except yaml.YAMLError as e:
-                    _log.info("Error reding info file: {}".format(info_file))
+                    logger.info("Error reding info file: {}".format(info_file))
                     self._info = {}
 
         self._info_path = info_file
@@ -70,7 +69,6 @@ class BaseFold(object):
             yaml.dump(self._info, info_file)
 
     def update_info(self, **kwargs):
-        _log.warning("this")
         if not os.path.exists(self._info_path):
             self._create_info_file(**kwargs)
         else:
@@ -80,6 +78,22 @@ class BaseFold(object):
 
     def get_info(self, attr):
         return self._info.get(attr, None)
+
+    @property
+    def thumbnail(self):
+        if not self._thumbnail:
+            path = os.path.join(self._path, ".thumbnail")
+            if os.path.exists(path) and os.listdir(path):
+                file_name = next(iter([f for f in os.listdir(path) if f.endswith(".png")]), "{}.png".format(self._name))
+            else:
+                file_name = "{}.png".format(self._name)
+            self._thumbnail = os.path.join(path, file_name)
+
+        return self._thumbnail
+
+    @property
+    def local_path(self):
+        return self._local_path
 
     @property
     def name(self):
@@ -97,15 +111,25 @@ class BaseFold(object):
 class Project(BaseFold):
     def __init__(self, name, path=None):
         if not path:
-            path = os.path.join(_DEFAULT_PROJECT_PATH,  name)
+            path = os.path.join(configs.UserConfig.central_project_path, name)
         super(Project, self).__init__(name, path)
 
     def get_reels(self):
-        workflow_dir = os.path.join(self.path, _WORKFLOW)
+        workflow_dir = os.path.join(self.path, configs.GlobalConfig.workflow_dir_name)
         if not os.path.exists(workflow_dir):
             return []
         reel_names = os.listdir(workflow_dir)
         return [Reel(self, reel) for reel in reel_names if os.path.isdir(os.path.join(workflow_dir, reel))]
+
+    def create(self, **kwargs):
+        BaseFold.create(self, **kwargs)
+        self.create_sub_dirs()
+
+    def create_sub_dirs(self):
+        for dr in configs.GlobalConfig.project_sub_dirs:
+            path = os.path.join(self.path, dr)
+            if not os.path.exists(path):
+                os.makedirs(path)
 
 
 class Reel(BaseFold):
@@ -113,7 +137,7 @@ class Reel(BaseFold):
     def __init__(self, project, name, path=None):
         self._project = project if isinstance(project, Project) else Project(project)
         if not path:
-            path = os.path.join(self._project.path, _WORKFLOW, name)
+            path = os.path.join(self._project.path, configs.GlobalConfig.workflow_dir_name, name)
         super(Reel, self).__init__(name, path)
 
     def get_shots(self):
@@ -146,6 +170,14 @@ class Shot(BaseFold):
             self._reel.create()
         BaseFold.create(self, project=self._project.name, reel=self._reel.name, **kwargs)
 
+        self.create_sub_dirs()
+
+    def create_sub_dirs(self):
+        for dr in configs.GlobalConfig.shot_sub_dirs:
+            path = os.path.join(self.path, dr)
+            if not os.path.exists(path):
+                os.makedirs(path)
+
     def get_footages(self):
         return Footage.get_all_footage_in_shot(self)
 
@@ -159,7 +191,7 @@ class Shot(BaseFold):
 
 
 class FootageTypes(object):
-    __ALL_TYPES = ALL_FOOTAGE_TYPES
+    __ALL_TYPES = configs.GlobalConfig.all_footage_types
 
     def __init__(self, name):
         f_type = self.__ALL_TYPES.get(name, self.__ALL_TYPES.get("Render"))
@@ -189,7 +221,7 @@ class Footage(BaseFold):
         name = footage_type.validate_name(name=name, shot=shot.name, **shot.__dict__)
         path = os.path.join(shot.path, sub_dir, name)
         super(Footage, self).__init__(name, path)
-        self._type = footage_type.name
+        self._type = footage_type
         self._shot = shot
 
     def create(self, project=None, reel=None, shot=None, **kwargs):
@@ -232,6 +264,18 @@ class Footage(BaseFold):
             return None
 
     @property
+    def crumbs(self):
+        return "{}/{}/{}".format(
+            self.shot.project,
+            self.shot.reel,
+            self.shot.name
+        )
+
+    @property
+    def thumbnail(self):
+        return self.latest().thumbnail
+
+    @property
     def type(self):
         return self._type
 
@@ -266,6 +310,8 @@ class Version(object):
             version = "v%02d" % int(version)
         self._version = version
         self._path = os.path.join(self._parent.path, self._version)
+        self._local_path = self._path.replace(
+            configs.UserConfig.central_project_path,configs.UserConfig.local_project_path)
         ext = ext if ext else DEFAULT_EXTENSIONS[version_type]
         if not ext.startswith("."):
             ext = "." + ext
@@ -279,6 +325,7 @@ class Version(object):
         self._end = 0
         self._frame_range = None
         self._seq = []
+        self._thumbnail = None
 
         info = self._parent.get_version_info(self._version)
         if info:
@@ -302,9 +349,9 @@ class Version(object):
         return fileseq.format(SEQ_FORMAT)
 
     def exists(self):
-        return os.path.exists(
-            self._seq[0].frame(self._seq[0].start())
-        )
+        # TODO might not work on local file as findseq is running on central
+        file_path = self._seq[0].frame(self._seq[0].start())
+        return find_available_location(file_path, file_path.replace(self._path, self._local_path))
 
     def new(self):
         try:
@@ -318,17 +365,21 @@ class Version(object):
         except FileNotFoundError:
             return "v01"
 
-    def create(self):
-        if os.path.exists(self._path):
+    def create(self, local=False):
+        exists = find_available_location(self._path, self._local_path)
+        if exists == Location.BOTH:
             return self
 
         if not self._parent.exists():
             self._parent.create()
 
-        os.makedirs(self._path)
+        if exists != Location.CENTRAL:
+            os.makedirs(self._path)
+            self._created_by = "username"
+            self._created_at = datetime.datetime.now()
 
-        self._created_by = "username"
-        self._created_at = datetime.datetime.now()
+        if local and exists != Location.LOCAL:
+            os.makedirs(self._local_path)
 
         self.update_info(**self.info)
         return self
@@ -353,7 +404,8 @@ class Version(object):
         del info[self._version]
         self._parent.update_info(versions=info)
 
-    def create_link(self, path):
+    def create_link(self, path, link_to=Location.CENTRAL):
+        # only link to central
         src = None
         for parent, dirs, files in os.walk(path):
             if files:
@@ -367,9 +419,19 @@ class Version(object):
 
             self.update_info(original_path=path, **self.info)
 
-    def copy_files_from(self, path):
-        if self.exists():
+    def copy_files_from(self, path, copy_to=Location.CENTRAL):
+        # TODO test it in both local and central
+        if self.exists() == copy_to:
             raise Exception("Files already exists")
+
+        if copy_to == Location.BOTH:
+            paths = (self._path, self._local_path)
+        elif copy_to == Location.LOCAL:
+            paths = (self._local_path,)
+        elif copy_to == Location.CENTRAL:
+            paths = (self._path,)
+        else:
+            return None
 
         src = None
         for parent, dirs, files in os.walk(path):
@@ -378,15 +440,17 @@ class Version(object):
                 break
 
         if src:
-            os.makedirs(self._path)
             src_seqs = findSequencesOnDisk(src)
-            for fs in src_seqs:
-                cp = fs.copy()
-                cp.setDirname(self.path)
-                if len(src_seqs) == 1:
-                    cp.setBasename("{}_{}.".format(self._parent.name, self._version))
-                copy_tasks = [(shutil.copy, fs.frame(frame), cp.frame(frame)) for frame in cp.frameSet()]
-                TaskThreader.add_to_queue(copy_tasks)
+            for path in paths:
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                for fs in src_seqs:
+                    cp = fs.copy()
+                    cp.setDirname(path)
+                    if len(src_seqs) == 1:
+                        cp.setBasename("{}_{}.".format(self._parent.name, self._version))
+                    copy_tasks = [(shutil.copy, fs.frame(frame), cp.frame(frame)) for frame in cp.frameSet()]
+                    TaskThreader.add_to_queue(copy_tasks)
 
             self.find_sequence()
             self._created_by = "username"
@@ -398,6 +462,35 @@ class Version(object):
         info.update({self._version: kwargs})
         self._parent.update_info(versions=info)
 
+    def centralise(self):
+        if self.exists() in (Location.CENTRAL, Location.BOTH):
+            logger.warning("Version already exists in central")
+            return None
+
+        if not os.listdir(self._local_path):
+            raise Exception("Local version is not available")
+
+        src_seqs = findSequencesOnDisk(self._local_path)
+        for seq in src_seqs:
+            central_copy = seq.copy()
+            central_copy.setDirname(self._path)
+            copy_tasks = [(shutil.copy,seq.frame(frame), central_copy.frame(frame)) for frame in central_copy.frameSet()]
+            TaskThreader.add_to_queue(copy_tasks)
+
+    def localise(self):
+        if self.exists() in (Location.LOCAL, Location.BOTH):
+            logger.warning("Version already exists in local")
+            return None
+        if self.exists() is not Location.CENTRAL:
+            raise Exception("Central version is not available")
+
+        self.create(local=True)
+        for seq in self._seq:
+            local_copy = seq.copy()
+            local_copy.setDirname(self._local_path)
+            copy_tasks = [(shutil.copy, seq.frame(frame), local_copy.frame(frame)) for frame in local_copy.frameSet()]
+            TaskThreader.add_to_queue(copy_tasks)
+
     def find_sequence(self):
         self._seq = findSequencesOnDisk(self._path, pad_style=PAD_STYLE_HASH1)
 
@@ -407,7 +500,10 @@ class Version(object):
             if self._seq[0].frameSet():
                 self._type = VersionType.IMAGESEQ
             else:
-                self._type = VersionType.SINGLEFILE
+                if self._seq[0].extension() == "mov":
+                    self._type = VersionType.QUICKTIME
+                else:
+                    self._type = VersionType.SINGLEFILE
         else:
             # if there are no sequence then its new version
             if self._type is VersionType.SINGLEFILE:
@@ -437,6 +533,35 @@ class Version(object):
             fs.setFrameRange(value)
             self._frame_range = self._seq[0].frameRange()
 
+    def latest(self):
+        try:
+            versions = self.get_all_versions()
+            if versions:
+                return max(versions)
+            else:
+                return "v01"
+        except FileNotFoundError:
+            return "v01"
+
+    def get_all_versions(self):
+        return [v for v in os.listdir(self._parent.path) if bool(self._pattern.match(v))]
+
+    def get_inf_str(self, html=False):
+        line = "<b>{}:</b>\t<b>{}</b>\n" if html else "{}:\t{}\n"
+        str_info = ""
+        for key, value in self.info.items():
+            str_info += line.format(key, value)
+        return str_info
+
+    @property
+    def thumbnail(self):
+        if not self._thumbnail:
+            path = os.path.dirname(BaseFold.thumbnail.fget(self._parent))
+            file_name = "{}_{}.png".format(self._parent.name, self.version)
+            self._thumbnail = os.path.join(path, file_name)
+
+        return self._thumbnail
+
     @property
     def info(self):
         return {
@@ -447,10 +572,24 @@ class Version(object):
             "end": self._end,
             "extension": self._ext,
             "path": self._path,
+            "local_path": self._local_path,
             "filepaths": self._filepaths,
+            "local_filepaths": self.local_filepaths,
             "created_by": self._created_by,
             "created_at": self._created_at
         }
+
+    @property
+    def crumbs(self):
+        return self._parent.crumbs
+
+    @property
+    def footage_type(self):
+        return self._parent.type
+
+    @property
+    def parent(self):
+        return self._parent
 
     @property
     def created_by(self):
@@ -479,6 +618,10 @@ class Version(object):
     @property
     def path(self):
         return self._path
+    
+    @property
+    def local_path(self):
+        return self._local_path
 
     @property
     def extension(self):
@@ -495,16 +638,10 @@ class Version(object):
     @property
     def filepaths(self):
         return self._filepaths
-
-    def latest(self):
-        try:
-            versions = [v for v in os.listdir(self._parent.path) if bool(self._pattern.match(v))]
-            if versions:
-                return max(versions)
-            else:
-                return "v01"
-        except FileNotFoundError:
-            return "v01"
+    
+    @property
+    def local_filepaths(self):
+        return [path.replace(self.path, self._local_path) for path in self._filepaths]
 
     @classmethod
     def get_all_version_instances(cls, parent):
@@ -526,9 +663,11 @@ class Version(object):
 
 
 def get_all_projects():
-    if not os.path.exists(_DEFAULT_PROJECT_PATH):
+    # TODO only return active projects
+    if not configs.UserConfig.exists():
         return []
-    return [Project(p) for p in os.listdir(_DEFAULT_PROJECT_PATH)]
+    return [Project(p) for p in os.listdir(configs.UserConfig.central_project_path)
+            if os.path.isdir(os.path.join(configs.UserConfig.central_project_path, p))]
 
 
 def fold_from_info(info_file):
@@ -545,7 +684,7 @@ def fold_from_info(info_file):
         try:
             _info = yaml.safe_load(f)
         except yaml.YAMLError:
-            _log.info("Error reding info file: {}".format(info_file))
+            logger.info("Error reding info file: {}".format(info_file))
             _info = {}
     if _info:
         _class = _info.get("class")

@@ -1,0 +1,16 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource>
+<file>icons/delete.png</file>
+<file>icons/document.png</file>
+<file>icons/edit.png</file>
+<file>icons/file.png</file>
+<file>icons/folder.png</file>
+<file>icons/menu.png</file>
+<file>icons/ok.png</file>
+<file>icons/project.png</file>
+<file>icons/reel.png</file>
+<file>icons/reload.png</file>
+<file>icons/settings.png</file>
+<file>icons/shot.png</file>
+</qresource>
+</RCC>

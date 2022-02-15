@@ -280,18 +280,18 @@ class Representer(SafeRepresenter):
             data = '%r+%rj' % (data.real, data.imag)
         else:
             data = '%r%rj' % (data.real, data.imag)
-        return self.represent_scalar('tag:yaml.org,2002:python/complex', data)
+        return self.represent_scalar('tag:yaml.org,2002:src/complex', data)
 
     def represent_tuple(self, data):
-        return self.represent_sequence('tag:yaml.org,2002:python/tuple', data)
+        return self.represent_sequence('tag:yaml.org,2002:src/tuple', data)
 
     def represent_name(self, data):
         name = '%s.%s' % (data.__module__, data.__name__)
-        return self.represent_scalar('tag:yaml.org,2002:python/name:'+name, '')
+        return self.represent_scalar('tag:yaml.org,2002:src/name:'+name, '')
 
     def represent_module(self, data):
         return self.represent_scalar(
-                'tag:yaml.org,2002:python/module:'+data.__name__, '')
+                'tag:yaml.org,2002:src/module:'+data.__name__, '')
 
     def represent_object(self, data):
         # We use __reduce__ API to save the data. data.__reduce__ returns
@@ -307,8 +307,8 @@ class Representer(SafeRepresenter):
         # Another special case is when __reduce__ returns a string - we don't
         # support it.
 
-        # We produce a !!python/object, !!python/object/new or
-        # !!python/object/apply node.
+        # We produce a !!src/object, !!src/object/new or
+        # !!src/object/apply node.
 
         cls = type(data)
         if cls in copyreg.dispatch_table:
@@ -331,16 +331,16 @@ class Representer(SafeRepresenter):
         if function.__name__ == '__newobj__':
             function = args[0]
             args = args[1:]
-            tag = 'tag:yaml.org,2002:python/object/new:'
+            tag = 'tag:yaml.org,2002:src/object/new:'
             newobj = True
         else:
-            tag = 'tag:yaml.org,2002:python/object/apply:'
+            tag = 'tag:yaml.org,2002:src/object/apply:'
             newobj = False
         function_name = '%s.%s' % (function.__module__, function.__name__)
         if not args and not listitems and not dictitems \
                 and isinstance(state, dict) and newobj:
             return self.represent_mapping(
-                    'tag:yaml.org,2002:python/object:'+function_name, state)
+                    'tag:yaml.org,2002:src/object:'+function_name, state)
         if not listitems and not dictitems  \
                 and isinstance(state, dict) and not state:
             return self.represent_sequence(tag+function_name, args)
@@ -358,7 +358,7 @@ class Representer(SafeRepresenter):
     def represent_ordered_dict(self, data):
         # Provide uniform representation across different Python versions.
         data_type = type(data)
-        tag = 'tag:yaml.org,2002:python/object/apply:%s.%s' \
+        tag = 'tag:yaml.org,2002:src/object/apply:%s.%s' \
                 % (data_type.__module__, data_type.__name__)
         items = [[key, value] for key, value in data.items()]
         return self.represent_sequence(tag, [items])
