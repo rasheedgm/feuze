@@ -5,9 +5,8 @@ from PySide2.QtCore import QSize
 from PySide2.QtGui import QIcon, QPixmap
 from PySide2.QtWidgets import QStyle
 
-from src.core.constant import Align
+from feuze.core.constant import Align
 
-from src.ui.base import icons_rc
 
 
 class BaseInput(QtWidgets.QWidget):
@@ -122,7 +121,7 @@ class FileInput(BaseInput):
     def __init__(self, name, label=None, value=None, values=None, align=None):
         super(FileInput, self).__init__(name, "file", label, value, values, align)
         self.action = self.input_widget.addAction(
-            QIcon(":icons/folder.png"), QtWidgets.QLineEdit.ActionPosition.TrailingPosition
+            QtGui.QIcon(":icons/folder.png"), QtWidgets.QLineEdit.ActionPosition.TrailingPosition
         )
         # QtWidgets.QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon),
         # QtWidgets.QLineEdit.ActionPosition.TrailingPosition

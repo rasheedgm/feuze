@@ -12,7 +12,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
-from src.ui.base import icons_rc
+from feuze.ui.base import icons_rc
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -327,7 +327,7 @@ class Ui_MainWindow(object):
         self.tab_widget.setTabText(self.tab_widget.indexOf(self.reel_shot_tab), QCoreApplication.translate("MainWindow", u"Reel/Shot", None))
         self.tab_widget.setTabText(self.tab_widget.indexOf(self.asset_tab), QCoreApplication.translate("MainWindow", u"Assets", None))
         self.groupBox_4.setTitle("")
-        self.label_2.setText(QCoreApplication.translate("MainWindow", u"Frolic Browser", None))
+        self.label_2.setText(QCoreApplication.translate("MainWindow", u"Feuze Browser", None))
         self.groupBox_2.setTitle(QCoreApplication.translate("MainWindow", u"Actions", None))
         self.add_project.setText(QCoreApplication.translate("MainWindow", u"Add Project", None))
         self.add_reel.setText(QCoreApplication.translate("MainWindow", u"Add Reel", None))

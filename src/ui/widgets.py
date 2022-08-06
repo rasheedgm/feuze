@@ -2,8 +2,11 @@ import os
 from functools import partial
 from PySide2 import QtWidgets, QtCore, QtGui
 
-from src.core.fold import Reel, Version
-from src.ui.base.placer_ui import Ui_placer
+from feuze.core.constant import Location
+from feuze.core.fold import Reel, Shot, FootageTypes, Footage, BaseFold
+from feuze.core.version import FootageVersion
+from feuze.ui.base.placer_ui import Ui_placer
+from feuze.ui.utility import get_main_window
 
 
 class ProjectItem(QtWidgets.QListWidgetItem):
@@ -99,6 +102,186 @@ class TypeItem(QtWidgets.QListWidgetItem):
         return self.__items
 
 
+class IngestListItem(QtWidgets.QTreeWidgetItem):
+    """Ingest window list item"""
+    def __init__(self, path):
+        basename = os.path.basename(path)
+        super(IngestListItem, self).__init__([basename])
+        self._path = os.path.normpath(path)
+        self._format_string = ""
+        self.setToolTip(2,"Rename Expression:\n"
+                          "{project}: replaces with project name\n"
+                          "{reel}: replaces with reel name\n"
+                          "{shot}: shot name(only available on footges/shot types\n"
+                          "{type}: type of this\n"
+                          "{current_name}:  for current name.\n"
+                          "{origin_name}: original folder name.")
+
+    def get_parent_fold(self):
+        result = None
+        item = self.parent()
+        while item:
+            if getattr(item, "fold", None):
+                result = item, item.fold
+                item = None
+            else:
+                item = item.parent()
+
+        if result:
+            return result
+        else:
+            return None, None
+
+    def set_fold(self, fold_type, fold_name=None):
+        # if fold.__class__.__name__ not in ["Reel", "Shot", "Footage"]:
+        #     return False
+        # self.setText(1, fold.__class__.__name__)
+        # self.setText(2, fold.name)
+        # self._fold = fold
+        # unset all children if same type exits
+        self.unset_fold(by_type=fold_type)
+        # unset from parent if exits with same type
+        parent_item = self.parent()
+        while parent_item:
+            p_type = getattr(parent_item, "fold_type", None)
+            if p_type == fold_type:
+                parent_item.unset_fold(by_type=fold_type, unset_children=False)
+            parent_item = parent_item.parent()
+        valid_types = ["Reel", "Shot", "Footage"] + [f.name for f in FootageTypes.get_all()]
+        fold_name = fold_name if fold_name else self.text(0)
+        if fold_type not in valid_types:
+            return False
+        self.fold_type = fold_type
+        self.fold_name = fold_name
+        self._format_string = fold_name
+
+    def string_convert(self, case):
+        case = case.lower()
+        if case == "upper":
+            self.fold_name = self.fold_name.upper()
+        if case == "lower":
+            self.fold_name = self.fold_name.lower()
+        if case == "title":
+            self.fold_name = self.fold_name.title()
+
+    def unset_fold(self, by_type=None, unset_children=True):
+        if not by_type or self.fold_type == by_type:
+            self.fold_type = ""
+            self.fold_name = ""
+            self._format_string = ""
+
+        # unset if footage type matches
+        foot_types = FootageTypes.get_all()
+        if by_type in foot_types and self.fold_type in foot_types:
+            self.fold_type = ""
+            self.fold_name = ""
+            self._format_string = ""
+
+        if unset_children:
+            for idx in range(self.childCount()):
+                child = self.child(idx)
+                child.unset_fold(by_type=by_type)
+
+    def rename(self, value):
+        fold = self.fold
+        if not fold or not value:
+            return
+        attrs = self.__get_attrs_for_format()
+
+        try:
+            new_name = value.format(**attrs)
+            self.fold_name = new_name
+            self._format_string = value
+        except KeyError:
+            pass
+
+    def __get_attrs_for_format(self):
+        fold = self.fold
+        if not fold:
+            return {}
+        attrs = {}
+        fold_type = fold.__class__.__name__
+        if fold_type == "Reel":
+            attrs["project"] = fold.project
+            attrs["reel"] = fold.name
+        elif fold_type == "Shot":
+            attrs["project"] = fold.project
+            attrs["reel"] = fold.reel
+            attrs["shot"] = fold.name
+        elif fold_type == "Footage":
+            attrs["project"] = fold.shot.project
+            attrs["reel"] = fold.shot.reel
+            attrs["shot"] = fold.shot.name
+
+        attrs["type"] = self.fold_type
+        attrs["current_name"] = self.fold_name
+        attrs["origin_name"] = self.text(0)
+
+        return attrs
+
+    @property
+    def format_string(self):
+        return self._format_string
+
+    @property
+    def fold(self):
+        if not self.fold_name or not self.fold_type:
+            return None
+        _, parent_fold = self.get_parent_fold()
+        if not parent_fold:
+            parent_fold_type = None
+        else:
+            parent_fold_type = parent_fold.__class__.__name__
+
+        if parent_fold_type is None:
+            main_window = get_main_window()
+            if not main_window:
+                return None
+            project = main_window.current_project()
+            if not project:
+                raise(Exception("Project is not selected"))
+            return Reel(
+                project.name,
+                self.fold_name
+            )
+        if parent_fold_type == "Reel":
+            return Shot(
+                parent_fold.project,
+                parent_fold.name,
+                self.fold_name
+            )
+        if parent_fold_type == "Shot":
+            return Footage(
+                shot=parent_fold,
+                name=self.fold_name,
+                footage_type=self.fold_type
+            )
+
+    @property
+    def fold_name(self):
+        return self.text(2)
+
+    @fold_name.setter
+    def fold_name(self, value):
+        self.setText(2, value)
+
+    @property
+    def fold_type(self):
+        return self.text(1)
+
+    @fold_type.setter
+    def fold_type(self, value):
+        self.setText(1, value)
+
+    @property
+    def level(self):
+        return len(self._path.split(os.path.sep))
+
+    @property
+    def path(self):
+        return self._path
+
+
 class Placer(QtWidgets.QWidget, Ui_placer):
     clicked = QtCore.Signal(QtGui.QMouseEvent)
 
@@ -168,7 +351,7 @@ class Placer(QtWidgets.QWidget, Ui_placer):
             self.clicked.emit(event)
         super(Placer, self).mousePressEvent(event)
 
-    def set_version(self, version: Version):
+    def set_version(self, version: FootageVersion):
         if not version:
             return None
         self.version = version
@@ -202,6 +385,10 @@ class Placer(QtWidgets.QWidget, Ui_placer):
         ))
         menu.addAction('Test menu', lambda: print("clicked"))
         menu.addAction('Play', lambda: print("play clicked"))
+        if self.version.exists() == Location.CENTRAL:
+            menu.addAction('Localise', lambda: self.version.localise())
+        if self.version.exists() == Location.LOCAL:
+            menu.addAction('Centralise', lambda: self.version.centralise())
         menu.addSeparator()
         version_submenu = menu.addMenu("Versions")
         versions = self.version.get_all_versions()
@@ -260,8 +447,6 @@ class ScrollArea(QtWidgets.QScrollArea):
         if event.button() == QtCore.Qt.LeftButton:
             self.on_click(event)
         super(ScrollArea, self).mousePressEvent(event)
-
-
 
 
 class FlowLayout(QtWidgets.QLayout):

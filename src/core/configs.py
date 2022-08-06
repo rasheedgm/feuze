@@ -16,15 +16,19 @@ SHOT_SUB_DIRS:
 ALL_FOOTAGE_TYPES:
   # these will be updated on default types
   Render: {"name": "Render", "short_name": "GR", "sub_dir": "Renders", "template": "{name}" }
-
+ALL_TASK_TYPES:
+  Comp: {"name": "Comp", "short_name": "CMP", "sub_dir": "Comp", "template": "{name}"}
+USERS_DIR: <path>
+USER_ROLES:
+    admin:
+        - permissions list(user_admin, project_admin)
 """
 
 import yaml
 import os.path
 
-from src.core.constant import ALL_FOOTAGE_TYPES, WORKFLOW_DIR_NAME, DAILIES_DIR_NAME, ASSETS_DIR_NAME, \
-    FROM_CLIENT_DIR_NAME, TO_CLIENT_DIR_NAME, SHOT_SUB_DIRS
-from src.core.utility import get_user_config_file, logger
+from feuze.core.utility import get_user_config_file, logger
+from feuze.core import constant
 
 
 class _UserConfig(object):
@@ -36,6 +40,7 @@ class _UserConfig(object):
         super(_UserConfig, self).__init__()
         if self.__class__.__instance is None:
             self.__class__.__instance = self
+            # TODO what if file/dir doesnt exists
             with open(self.config_path, "r") as fl:
                 self.__data = yaml.safe_load(fl)
                 self.__set_attr()
@@ -63,7 +68,7 @@ class _UserConfig(object):
 
     @classmethod
     def validate(cls):
-        for key in ["central_project_path", "local_project_path"]:
+        for key in ("central_project_path", "local_project_path"):
             if getattr(cls, key) is None:
                 return False
         return True
@@ -95,16 +100,27 @@ class _GlobalConfig(object):
             self.__set_attr()
 
     def __set_attr(self):
+
+        media_type_from_config = self.__data.get("MEDIA_TYPES")
+        if media_type_from_config:
+            constant.MEDIA_TYPES.update(media_type_from_config)
+        self._all_media_types = constant.MEDIA_TYPES
+
         footage_type_from_config = self.__data.get("ALL_FOOTAGE_TYPES")
         if footage_type_from_config:
-            ALL_FOOTAGE_TYPES.update(footage_type_from_config)
-        self._all_footage_types = ALL_FOOTAGE_TYPES
+            constant.ALL_FOOTAGE_TYPES.update(footage_type_from_config)
+        self._all_footage_types = constant.ALL_FOOTAGE_TYPES
+
+        task_type_from_config = self.__data.get("ALL_TASK_TYPES")
+        if task_type_from_config:
+            constant.ALL_TASK_TYPES.update(task_type_from_config)
+        self._all_task_types = constant.ALL_TASK_TYPES
         
-        self._workflow_dir_name = self.__data.get("WORKFLOW_DIR_NAME") or WORKFLOW_DIR_NAME
-        self._dailies_dir_name = self.__data.get("DAILIES_DIR_NAME") or DAILIES_DIR_NAME
-        self._assets_dir_name = self.__data.get("ASSETS_DIR_NAME") or ASSETS_DIR_NAME
-        self._from_client_dir_name = self.__data.get("FROM_CLIENT_DIR_NAME") or FROM_CLIENT_DIR_NAME
-        self._to_client_dir_name = self.__data.get("TO_CLIENT_DIR_NAME") or TO_CLIENT_DIR_NAME
+        self._workflow_dir_name = self.__data.get("WORKFLOW_DIR_NAME") or constant.WORKFLOW_DIR_NAME
+        self._dailies_dir_name = self.__data.get("DAILIES_DIR_NAME") or constant.DAILIES_DIR_NAME
+        self._assets_dir_name = self.__data.get("ASSETS_DIR_NAME") or constant.ASSETS_DIR_NAME
+        self._from_client_dir_name = self.__data.get("FROM_CLIENT_DIR_NAME") or constant.FROM_CLIENT_DIR_NAME
+        self._to_client_dir_name = self.__data.get("TO_CLIENT_DIR_NAME") or constant.TO_CLIENT_DIR_NAME
 
         project_sub_dirs = [
             self._workflow_dir_name, self._dailies_dir_name,
@@ -114,7 +130,28 @@ class _GlobalConfig(object):
             project_sub_dirs += project_sub_dirs_from_config
         self._project_sub_dirs = list(set(project_sub_dirs))
 
-        self._shot_sub_dirs = self.__data.get("SHOT_SUB_DIRS") or SHOT_SUB_DIRS
+        self._shot_sub_dirs = self.__data.get("SHOT_SUB_DIRS") or constant.SHOT_SUB_DIRS
+
+        self._users_dir = self.__data.get("USERS_DIR") or None
+
+        user_roles_from_config = self.__data.get("USER_ROLES")
+        if user_roles_from_config:
+            constant.USER_ROLES.update(user_roles_from_config)
+        self._user_roles = constant.USER_ROLES
+
+        task_statuses = self.__data.get("TASK_STATUSES") or []
+        task_statuses_names = (n["status"] for n in task_statuses)
+        if task_statuses:
+            constant.TASK_STATUSES = [s for s in constant.TASK_STATUSES if s.get("status") not in task_statuses_names]
+            constant.TASK_STATUSES.extend(task_statuses)
+        self._task_statuses = constant.TASK_STATUSES
+
+        shot_statuses = self.__data.get("SHOT_STATUSES") or []
+        shot_statuses_names = (n["status"] for n in shot_statuses)
+        if shot_statuses:
+            constant.SHOT_STATUSES = [s for s in constant.SHOT_STATUSES if s.get("status") not in shot_statuses_names]
+            constant.SHOT_STATUSES.extend(shot_statuses)
+        self._shot_statuses = constant.SHOT_STATUSES
 
     def update(self, **kwargs):
         self.__data.update(kwargs)
@@ -126,9 +163,33 @@ class _GlobalConfig(object):
             yaml.dump(self.__data, fl)
 
     @property
+    def all_media_types(self):
+        return self._all_media_types
+
+    @property
+    def shot_statuses(self):
+        return self._shot_statuses
+
+    @property
+    def task_statuses(self):
+        return self._task_statuses
+
+    @property
+    def user_roles(self):
+        return self._user_roles
+
+    @property
+    def users_dir(self):
+        return self._users_dir
+
+    @property
     def all_footage_types(self):
         return self._all_footage_types
-    
+
+    @property
+    def all_task_types(self):
+        return self._all_task_types
+
     @property
     def workflow_dir_name(self):
         return self._workflow_dir_name

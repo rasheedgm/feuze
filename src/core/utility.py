@@ -1,28 +1,15 @@
-import inspect
 import os
+import sys
 import subprocess
+import logging
+import ctypes
+import yaml
+
 from functools import partial
 from threading import Thread, Lock
 from queue import Queue
-import logging
-import ctypes
-import sys
 
-from src.core.constant import THREAD_COUNT, APP_NAME, Location
-
-logging.basicConfig()
-logger = logging.getLogger("Frolic")
-logger.setLevel(logging.INFO)
-
-
-def _execute(cmd):
-    popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
-    for stdout_line in iter(popen.stdout.readline, ""):
-        yield stdout_line
-    popen.stdout.close()
-    return_code = popen.wait()
-    if return_code:
-        raise subprocess.CalledProcessError(return_code, cmd)
+from feuze.core import constant
 
 
 def get_os():
@@ -37,18 +24,62 @@ def get_os():
     return _os_map.get(sys.platform)
 
 
+def get_user_config_dir():
+    current_os = get_os()
+    name = constant.APP_NAME.title()
+    if current_os == "windows":
+        return os.path.join(
+            os.environ["userprofile"],
+            "Documents", name,
+        )
+    elif current_os == "linux":
+        return os.path.join(os.environ["HOME"], name)
+    elif current_os == "mac":
+        return os.path.join(
+            os.environ["HOME"], "Library", "Preferences", name
+        )
+
+
+def get_logger():
+    format_str = "[%(asctime)s][%(levelname)s]\t| %(name)s :  %(message)s"
+    logging.basicConfig(
+        filename=os.path.join(get_user_config_dir(), "logs.log"),
+        filemode="w",
+        level=logging.DEBUG,
+        format=format_str
+    )
+    _logger = logging.getLogger(constant.APP_NAME.title())
+    _logger.addHandler(logging.StreamHandler())
+    for handler in _logger.handlers:
+        handler.setFormatter(logging.Formatter(format_str))
+    return _logger
+
+
+# Logger
+logger = get_logger()
+
+
+def _execute(cmd):
+    popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+    for stdout_line in iter(popen.stdout.readline, ""):
+        yield stdout_line
+    popen.stdout.close()
+    return_code = popen.wait()
+    if return_code:
+        raise subprocess.CalledProcessError(return_code, cmd)
+
+
 def find_available_location(central_path, local_path):
-    print(central_path, local_path)
     central = os.path.exists(central_path)
     local = os.path.exists(local_path)
     if all((central, local)):
-        return Location.BOTH
+        return constant.Location.BOTH
     elif central:
-        return Location.CENTRAL
+        return constant.Location.CENTRAL
     elif local:
-        return Location.LOCAL
+        return constant.Location.LOCAL
     else:
-        return Location.NONE
+        return constant.Location.NONE
 
 
 def create_symlink(src, dest):
@@ -83,20 +114,24 @@ def get_args_count(func):
 
 
 def get_user_config_file():
-    current_os = get_os()
-    name = APP_NAME.title()
-    if current_os == "windows":
-        return os.path.join(
-            os.environ["userprofile"],
-            "Documents", name,
-            "{}.yml".format(name)
-        )
-    elif current_os == "linux":
-        return os.path.join(os.environ["HOME"], name, "{}.yml".format(name))
-    elif current_os == "mac":
-        return os.path.join(
-            os.environ["HOME"], "Library", "Preferences", name, "{}.yml".format(name)
-        )
+    name = constant.APP_NAME.title()
+    return os.path.join(
+        get_user_config_dir(),
+        "{}.yml".format(name)
+    )
+
+
+def read_info_yaml(path):
+    _info = {}
+    info_file = os.path.join(path, "info.yaml")
+    if os.path.exists(info_file):
+        with open(info_file, "r") as file:
+            try:
+                _info = yaml.safe_load(file)
+            except yaml.YAMLError as e:
+                logger.info("Error reding info file: {}\n{}".format(info_file, e))
+
+    return _info, info_file
 
 
 class TaskThreader:
@@ -142,7 +177,7 @@ class TaskThreader:
             self.__task_queue.task_done()
 
     def __create_threads(self):
-        for i in range(THREAD_COUNT):
+        for i in range(constant.THREAD_COUNT):
             t = Thread(target=self.__task_worker)
             t.daemon = True
             t.start()
