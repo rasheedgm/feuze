@@ -1,6 +1,6 @@
 APP_NAME = "feuze"
 SEQ_FORMAT = "{dirname}{basename}{padding}{extension} {range}"
-VERSION_PATTERN = "^[vV]([0-9]+)$"
+VERSION_PATTERN = "^[vV]?(?P<versions>[0-9]+)$"
 THREAD_COUNT = 8
 
 
@@ -42,7 +42,19 @@ ALL_FOOTAGE_TYPES = {
 }
 
 ALL_TASK_TYPES = {
-    "Comp": {"name": "Comp", "short_name": "CMP", "sub_dir": "Comp", "task_names": ["final", "previz", "trailer", "temp"]},
+    "Comp": {
+        "name": "Comp",
+        "short_name": "CMP",
+        "sub_dir": "Comp",
+        "task_names": ["final", "previz", "trailer", "temp"], #TODO do we need this
+        "validators": [ # TODO work on this, this is validator which is not implemented yet
+            {
+                "name": "MediaValidator",
+                "args": ["Render", "Final"],
+                "kwargs": ""
+            }
+        ]
+    },
 }
 
 # Template can include any key in Shot.__dict__ [{project}, {reel}, {shot} , {name}] TODO Media
@@ -51,19 +63,27 @@ MEDIA_TYPES = {
         "media_type": "FileMedia",
         "short_name": "FLS",
         "sub_dir": "Files",
-        "name_template": "{name}",  # Shot.__dict__ [{project}, {reel}, {shot} , {name}]
+        "name_template": "{name}",  # [{project}, {reel}, {shot} , {name}]
         "media_class": "FileMedia",  # FileMedia | DataMedia
-        "file_type": "MultiSequence",  # | Sequence | SingleFile | None
+        "file_type": "MultiSequence",  # Sequence | SingleFile | MultiSequence | None
         "extension": None,
-        "validators": ["FileValidator", "DataValidator"]
+        "validators": ["FileValidator", "DataValidator"],
+        "version_format": "v{major:02}" #"v{major:02}.{minor:03}"  # {major} {minor}
     },
     "Render": {
         "media_type": "Render",
         "short_name": "RNDR",
         "sub_dir": "Renders",
         "extension": "exr",
+        "file_type": "Sequence",
+    },
+    "NukeScript": {
+        "media_type": "NukeScript",
+        "short_name": "NK",
+        "extension": "nk",
+        "file_type": "SingleFile",
+        "version_format": "v{major:02}.{minor:03}"
     }
-
 }
 
 # directory names

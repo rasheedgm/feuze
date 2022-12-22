@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 import os
 import re
 
@@ -6,6 +6,13 @@ from feuze.core import configs
 from feuze.core.fold import BaseFold, Shot
 from feuze.core.user import User, current_auth
 from feuze.core.version import TaskVersion
+
+from src.core.constant import VERSION_PATTERN
+
+
+# TODO versions need commit option which is locking a version
+#  while committing there should be one validation
+#  the validation will validate if version has required attributes set as task type needed
 
 
 class TaskTypes(object):
@@ -19,6 +26,7 @@ class TaskTypes(object):
         self.short_name = f_type["short_name"]
         self.sub_dir = f_type["sub_dir"]
         self.task_names = f_type["task_names"]
+        self.validators = f_type["validators"]
 
     def __str__(self):
         return self.name
@@ -39,6 +47,15 @@ class Task(BaseFold):
         super(Task, self).__init__(name, path)
         self._type = task_type
         self._shot = shot
+
+    def update_info(self, **kwargs):
+        if kwargs.get("status"):
+            latest = self.latest()
+            if not latest.committed:
+                raise Exception("Latest version({0}) is not committed".format(latest))
+            kwargs["status"]["version"] = latest.version
+
+        super(Task, self).update_info(**kwargs)
 
     def assign(self, user, comment=None):  # TODO
         """assign the task to one use"""
@@ -63,7 +80,7 @@ class Task(BaseFold):
 
         assignment = [
             {
-                "date": datetime.now(),
+                "date": datetime.datetime.now(),
                 "user": user.name,
                 "comment": comment
             }
@@ -94,7 +111,7 @@ class Task(BaseFold):
 
 
         assignment.append({
-                "date": datetime.now(),
+                "date": datetime.datetime.now(),
                 "user": user.name,
                 "comment": comment
             })
@@ -131,20 +148,13 @@ class Task(BaseFold):
         )
 
     def new(self):
-        return TaskVersion(self)
+        return self.version(None)
 
     def latest(self):
-        version = TaskVersion(self, version=1.0)
-        if os.path.exists(self.path):
-            versions = version.get_all_versions()
-            if versions:
-                version = max(versions)
-
-        return self.version(version)
+        return self.version("latest")
 
     def version(self, version):
-        version = TaskVersion.formatted_version(version)
-        return TaskVersion.get_version_instance(self, version)
+        return Version(self, version)
 
     def get_assignments(self, latest=False, user=None):
         assignments = sorted(self.get_info("assignment"), key=lambda x: x["date"], reverse=True)
@@ -200,6 +210,142 @@ class Task(BaseFold):
                 tasks += [cls(shot, name, _type.name) for name in os.listdir(path)
                              if os.path.isdir(os.path.join(path, name))]
         return tasks
+
+
+class Version(object):
+    _instances = {}
+    _format = "v{version:02}"
+
+    def __init__(self, task: Task, version=None):
+        super(Version, self).__init__()
+        self._task = task
+        self._created_at = None
+        self._created_by = None
+        self._thumbnail = None
+        self._committed = None
+
+        if version not in (None, "latest"):
+            self._version = self.get_version_int(version)
+        else:
+            self._version = version
+        versions_info = self._task.info.get("versions", {})
+        info = versions_info.get(self.version)
+        if info:
+            self.set_attributes_from_info(info)
+        else:
+            if versions_info:
+                latest = max([self.get_version_int(k) for k in versions_info.keys()])
+                if self._version is None:
+                    self._version = latest + 1
+                elif self._version == "latest":
+                    self._version = latest
+            else:
+                self._version = 1
+
+            self.set_attributes()
+
+    def set_attributes(self, frame_range=None):
+        self._committed = False
+        pass #TODO set attribute
+
+    def set_attributes_from_info(self, info):
+        self._committed = info.get("committed", False)
+        pass #TODO set attribute
+
+    def get_version_int(self, version=None):
+        if version is None:
+            version = self.version
+        if version:
+            if isinstance(version, int):
+                return version
+            if isinstance(version, float):
+                if version.is_integer():
+                    return int(version)
+                else:
+                    splits = str(version).split(".")
+                    return int(splits[0])
+            if version.isdigit():
+                return int(version)
+
+            match = self.version_pattern.match(version)
+            if bool(match):
+                return int(match.group("version"))
+
+        return None
+
+    def create(self, **kwargs):
+        # TODO who can created task
+        exists = self.exists()
+        if exists:
+            return None
+
+        self.task.create()
+
+        self._created_at = datetime.datetime.now()
+        self._created_by = current_auth().user.name
+
+        self.update_info( **kwargs)
+
+    def new(self):
+        versions_info = self._task.get_info("versions")
+        latest = max([self.get_version_int(k) for k in versions_info.keys()])
+        return latest + 1
+
+    def exists(self):
+        versions_info = self._task.get_info("versions")
+        return self.version in versions_info.keys()
+
+    def update_info(self, **kwargs):
+
+        self_info = {
+            "created_by": self._created_by,
+            "created_at": self._created_at,
+            "modified_at": datetime.datetime.now(),
+        }
+
+        self_info.update(kwargs)
+        versions_info = self.task.info.get("versions", {})
+        versions_info.update({self.version: self_info})
+        self.task.update_info(versions=versions_info)
+
+    def get_info(self, key):
+        return self.info.get(key)
+
+    @property
+    def info(self):
+        return self.task.info.get("versions", {}).get(self.version, {})
+
+    @property
+    def crumbs(self):
+        return self.task.crumbs + "/{}".format(self.version)
+
+    @property
+    def committed(self):
+        return self._committed
+
+    @property
+    def version(self):
+        return self._format.format(version=self._version)
+
+    @property
+    def version_pattern(self):
+        pattern = self._format.format(version="])?(?P<version>[0-9]+)")
+        pattern = "^([" + pattern + "$"
+        c_pattern = re.compile(pattern)
+        return c_pattern
+
+    @property
+    def thumbnail(self):
+        if not self._thumbnail:
+            path = os.path.join(self.task.path, ".thumbnail")
+            file_name = "{}_{}.png".format(self.task.name, self.version)
+            self._thumbnail = os.path.join(path, file_name)
+
+        return self._thumbnail
+
+    @property
+    def task(self):
+        return self._task
 
 
 def get_all_tasks(shot, filters=None):

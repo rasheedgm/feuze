@@ -216,8 +216,10 @@ class Auth(object):
     def __bool__(self):
         if self.__instance is not None:
             if self.__is_auth is None:
-                self.authorise()
-        return self.__is_auth
+                return self.authorise()
+            else:
+                return self.__is_auth if self.__is_auth else False
+        return False
 
     def authorise(self):
         if not any((self.__user, self.__password, self.__user and self.user.exists())):

@@ -23,11 +23,11 @@ class BaseFold(object):
         """
         self._name = name
         self._path = path
-        self._local_path = path.replace(configs.UserConfig.central_project_path, configs.UserConfig.local_project_path)
         self._thumbnail = None
-        self._info, self._info_path = utility.read_info_yaml(path)
+        self.__info, self._info_path = utility.read_info_yaml(path)
 
     def __str__(self):
+        # TODO make right str
         return self._name
 
     def exists(self):
@@ -37,13 +37,13 @@ class BaseFold(object):
         if not os.path.exists(self._path):
             os.makedirs(self._path)
 
-        if local and not os.path.exists(self._local_path):
-            os.makedirs(self._local_path)
+        if local and not os.path.exists(self.local_path):
+            os.makedirs(self.local_path)
 
         self._create_info_file(**kwargs)
 
     def _create_info_file(self, **kwargs):
-        info = dict()
+        info = self.info
         info["name"] = self._name
         info["path"] = self._path
         info["info_file"] = self._info_path
@@ -55,25 +55,20 @@ class BaseFold(object):
 
         info.update(kwargs)
 
-        self._info.update(info)
-
         with open(self._info_path, "w") as info_file:
-            yaml.dump(self._info, info_file)
+            yaml.dump(info, info_file)
 
     def update_info(self, **kwargs):
         if not os.path.exists(self._info_path):
             self._create_info_file(**kwargs)
         else:
-            self._info.update(kwargs)
+            info = self.info
+            info.update(kwargs)
             with open(self._info_path, "w") as info_file:
-                yaml.dump(self._info, info_file)
+                yaml.dump(info, info_file)
 
     def get_info(self, attr):
-        return self._info.get(attr, None)
-
-    def set_name(self, value):
-        # TODO need to remove
-        self._name = value
+        return self.info.get(attr, None)
 
     @property
     def thumbnail(self):
@@ -89,7 +84,7 @@ class BaseFold(object):
 
     @property
     def local_path(self):
-        return self._local_path
+        return self.path.replace(configs.UserConfig.central_project_path, configs.UserConfig.local_project_path)
 
     @property
     def name(self):
@@ -101,7 +96,8 @@ class BaseFold(object):
 
     @property
     def info(self):
-        return self._info
+        info, info_file = utility.read_info_yaml(self.path)
+        return info
 
 
 class Project(BaseFold):
@@ -168,7 +164,6 @@ class Shot(BaseFold):
             path = os.path.join(self._reel.path, name)
         super(Shot, self).__init__(name, path)
 
-
     def create(self, project=None, reel=None, **kwargs):
         auth = current_auth()
         if not auth or not auth.role.has("project_admin"):
@@ -185,9 +180,6 @@ class Shot(BaseFold):
             path = os.path.join(self.path, dr)
             if not os.path.exists(path):
                 os.makedirs(path)
-
-    def get_footages(self):
-        return Footage.get_all_footage_in_shot(self)
 
     @property
     def project(self):
@@ -305,6 +297,23 @@ class Footage(BaseFold):
         return footages
 
 
+def get_fold_regex_pattern():
+    central = configs.UserConfig.central_project_path.replace("\\", "\\\\")
+    local = configs.UserConfig.local_project_path.replace("\\", "\\\\")
+    workflow = configs.GlobalConfig.workflow_dir_name.replace("\\", "\\\\")
+
+    # ((?P<central>F:\\NAS)|(?P<local>F:\\PC1))\\(?P<project>[\w]+)(\\01_Shots(\\(?P<reel>[\w]+)(\\(?P<shot>[\w]+))?)?)?
+    pattern_format = os.path.join("{base}", "{project}(", "{workflow}(", "{reel}(", "{shot})?)?)?")
+    pattern_format = pattern_format.replace("\\", "\\\\")
+    return pattern_format.format(
+        base="((?P<central>{0})|(?P<local>{1}))".format(central, local),
+        project="(?P<project>[\w]+)",
+        workflow=workflow,
+        reel="(?P<reel>[\w]+)",
+        shot="(?P<shot>[\w]+)"
+    )
+
+
 def get_all_projects():
     # TODO only return active projects
     if not configs.UserConfig.exists():
@@ -350,22 +359,26 @@ def fold_from_info(info_file):
 
 def fold_from_path(path):
     """Create fold from a path"""
-    path = os.path.join(path)
-    if not os.path.isdir(path):
-        path = os.path.dirname(path)
-    if path.endswith(os.path.sep):
-        path = os.path.split(path)[0]
-    last_dir = os.path.split(path)[1]
-    if bool(re.match(FootageVersion._pattern, last_dir)):
-        version = last_dir
-        footage_dir = os.path.dirname(path)
-        footage = fold_from_info(footage_dir)
-        return FootageVersion(footage, version)
-    else:
-        return fold_from_info(path)
-
-
-
-
-
-
+    path = os.path.normpath(path)
+    match = re.match(get_fold_regex_pattern(), path)
+    if bool(match):
+        if match.group("shot"):
+            return Shot(match.group("project"), match.group("reel"), match.group("shot"))
+        elif match.group("reel"):
+            return Reel(match.group("project"), match.group("reel"))
+        elif match.group("project"):
+            return Project(match.group("project"))
+        else:
+            return None
+    # if not os.path.isdir(path):
+    #     path = os.path.dirname(path)
+    # if path.endswith(os.path.sep):
+    #     path = os.path.split(path)[0]
+    # last_dir = os.path.split(path)[1]
+    # if bool(re.match(FootageVersion._pattern, last_dir)):
+    #     version = last_dir
+    #     footage_dir = os.path.dirname(path)
+    #     footage = fold_from_info(footage_dir)
+    #     return FootageVersion(footage, version)
+    # else:
+    #     return fold_from_info(path)

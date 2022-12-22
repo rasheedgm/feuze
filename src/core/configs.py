@@ -18,6 +18,14 @@ ALL_FOOTAGE_TYPES:
   Render: {"name": "Render", "short_name": "GR", "sub_dir": "Renders", "template": "{name}" }
 ALL_TASK_TYPES:
   Comp: {"name": "Comp", "short_name": "CMP", "sub_dir": "Comp", "template": "{name}"}
+MEDIA_TYPES:
+  LightRender:
+    media_type: LightRender
+    short_name: LTRDR
+    sub_dir: Renders
+    extension: exr
+    file_type: MultiSequence
+    version_format: v{major}
 USERS_DIR: <path>
 USER_ROLES:
     admin:
@@ -41,9 +49,18 @@ class _UserConfig(object):
         if self.__class__.__instance is None:
             self.__class__.__instance = self
             # TODO what if file/dir doesnt exists
-            with open(self.config_path, "r") as fl:
-                self.__data = yaml.safe_load(fl)
-                self.__set_attr()
+            try:
+                with open(self.config_path, "r") as fl:
+                    self.__data = yaml.safe_load(fl)
+            except FileNotFoundError:
+                if not os.path.exists(os.path.dirname(self.config_path)):
+                    os.makedirs(os.path.dirname(self.config_path))
+                self.__data = {
+                    "central_project_path": os.path.dirname(self.config_path),
+                    "local_project_path": os.path.dirname(self.config_path)
+                }
+
+            self.__set_attr()
 
     def __set_attr(self):
         self._central_project_path = self.__data.get("central_project_path")
@@ -220,7 +237,7 @@ class _GlobalConfig(object):
 
     @classmethod
     def validate(cls):
-        for key in ["central_project_path", "local_project_path"]:
+        for key in ("central_project_path", "local_project_path"):
             if getattr(cls, key) is None:
                 return False
         return True

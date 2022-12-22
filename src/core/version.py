@@ -10,6 +10,7 @@ from feuze.core import configs, utility
 from feuze.core.constant import VERSION_PATTERN, VersionType, DEFAULT_EXTENSIONS, SEQ_FORMAT, Location
 from feuze.core.user import current_auth
 
+# TODO removing
 
 class BaseVersion(object):
     _instances = {}

@@ -17,5 +17,5 @@ class Attachment(object):
         # TODO working here
 
     def fetch(self):
-        pass
+        return []
 

@@ -42,8 +42,11 @@ def get_user_config_dir():
 
 def get_logger():
     format_str = "[%(asctime)s][%(levelname)s]\t| %(name)s :  %(message)s"
+    log_path = get_user_config_dir()
+    if not os.path.exists(log_path):
+        os.makedirs(log_path)
     logging.basicConfig(
-        filename=os.path.join(get_user_config_dir(), "logs.log"),
+        filename=os.path.join(log_path, "logs.log"),
         filemode="w",
         level=logging.DEBUG,
         format=format_str
@@ -190,6 +193,23 @@ class TaskThreader:
             cls.__callbacks[work_name].append(call)
         else:
             cls.__callbacks[work_name] = [call]
+
+    @classmethod
+    def remove_callback(cls, call, work_name="__all"):
+        if callable(call):
+            if call in cls.__callbacks.get(work_name, []):
+                cls.__callbacks[work_name].remove(call)
+                return True
+
+        elif isinstance(call, str):
+            for func in cls.__callbacks.get(work_name, []):
+                if func.__name__ == call:
+                    cls.__callbacks[work_name].remove(func)
+                    return True
+        else:
+            raise Exception("Invalid call/callback name")
+
+        return False
 
     @classmethod
     def add_to_queue(cls, tasks, wait=True):

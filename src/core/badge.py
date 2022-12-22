@@ -1,4 +1,18 @@
+"""A Badge is extra tag added to any item, which has info stored, Basic I dea here is this can be used
+to Read/Add a particular piece of info from info file ad any items. For example a Media version can
+have tag called approved, which can be used as approved version of media.
+>>> from feuze.core.fold import Shot
+>>> from feuze.core.media import MediaFactory
+>>> shot = Shot(project="PROJ1", reel="REEL01", name="SHOT001")
+>>> plate_media = MediaFactory(shot, "FinalRender", "Render")
+>>> plate_media_version = plate_media.version("latest")
+>>> badge_manager = BadgeManager(plate_media_version)
+>>> badge_manager.add("approved", "user")
+>>> badge_manager.fetch()
+"""
 from datetime import datetime
+
+from feuze.core.user import Auth
 
 
 class Badge(object):
@@ -59,7 +73,6 @@ class BadgeManager(object):
 
     def __init__(self, recipient):
         super(BadgeManager, self).__init__()
-
         if not hasattr(recipient, "update_info") or not hasattr(recipient, "get_info"):
             raise Exception("Recipient is not valid")
 
@@ -105,5 +118,3 @@ class BadgeManager(object):
     @property
     def recipient(self):
         return self.__recipient
-
-
