@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import subprocess
 import logging
@@ -135,6 +136,21 @@ def read_info_yaml(path):
                 logger.info("Error reding info file: {}\n{}".format(info_file, e))
 
     return _info, info_file
+
+
+def write_info_yaml(file_path, data):
+    temp_file_bak  = None
+    if os.path.exists(file_path):
+        temp_file_bak = os.path.join(os.path.dirname(file_path), ".info_bak.yaml")
+        shutil.copy(file_path, temp_file_bak)
+    try:
+        with open(file_path, "w") as info_file:
+            yaml.dump(data, info_file)
+    except Exception as e:
+        logger.error("Problem writing file {0}|{1}".format(file_path, e))
+        if temp_file_bak:
+            shutil.copy(temp_file_bak, file_path)
+        raise e
 
 
 class TaskThreader:

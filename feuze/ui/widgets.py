@@ -7,6 +7,7 @@ from feuze.core.fold import Reel, Shot, FootageTypes, Footage, BaseFold
 from feuze.core.version import FootageVersion
 from feuze.ui.base.placer_ui import Ui_placer
 from feuze.ui.utility import get_main_window
+from feuze.core.media import Version as MediaVersion
 
 
 class ProjectItem(QtWidgets.QListWidgetItem):
@@ -351,13 +352,13 @@ class Placer(QtWidgets.QWidget, Ui_placer):
             self.clicked.emit(event)
         super(Placer, self).mousePressEvent(event)
 
-    def set_version(self, version: FootageVersion):
+    def set_version(self, version: MediaVersion):
         if not version:
             return None
         self.version = version
 
         header = "/".join(version.crumbs.split("/")[1:])
-        foot = version.parent.name
+        foot = version.media.name
         ver = version.version if version.exists() else "*{}".format(version.version)
         img = version.thumbnail
 
@@ -391,7 +392,7 @@ class Placer(QtWidgets.QWidget, Ui_placer):
             menu.addAction('Centralise', lambda: self.version.centralise())
         menu.addSeparator()
         version_submenu = menu.addMenu("Versions")
-        versions = self.version.get_all_versions()
+        versions = self.version.media.get_all_versions()
         for ver in versions:
             act = partial(self.version_menu_action, ver)
             version_submenu.addAction(ver, act)

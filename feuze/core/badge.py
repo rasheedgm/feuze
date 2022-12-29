@@ -9,10 +9,10 @@ have tag called approved, which can be used as approved version of media.
 >>> badge_manager = BadgeManager(plate_media_version)
 >>> badge_manager.add("approved", "user")
 >>> badge_manager.fetch()
+Bagde is not status, status can only be applied to shot or task and these status has to be defined in config.
+but badge can be applied to any fold or item which has get_info and update_info methods. and Badge can be any term.
 """
 from datetime import datetime
-
-from feuze.core.user import Auth
 
 
 class Badge(object):

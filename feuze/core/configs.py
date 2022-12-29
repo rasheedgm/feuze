@@ -13,29 +13,47 @@ PROJECT_SUB_DIRS:
 SHOT_SUB_DIRS:
   Dir_name1
   Dir_name2
-ALL_FOOTAGE_TYPES:
+ALL_FOOTAGE_TYPES: TODO Remove this
   # these will be updated on default types
   Render: {"name": "Render", "short_name": "GR", "sub_dir": "Renders", "template": "{name}" }
-ALL_TASK_TYPES:
+ALL_TASK_TYPES: TODO Change this config example
   Comp: {"name": "Comp", "short_name": "CMP", "sub_dir": "Comp", "template": "{name}"}
 MEDIA_TYPES:
   LightRender:
     media_type: LightRender
     short_name: LTRDR
     sub_dir: Renders
+    name_template: "{name}"  # [{project}, {reel}, {shot} , {name}]
+    media_class: FileMedia  # FileMedia | DataMedia
     extension: exr
-    file_type: MultiSequence
-    version_format: v{major}
+    file_type: MultiSequence  # Sequence | SingleFile | MultiSequence | None
+    version_format: v{major}  #"v{major:0>2}.{minor:0>3}"  # {major} {minor}
 USERS_DIR: <path>
 USER_ROLES:
-    admin:
-        - permissions list(user_admin, project_admin)
+  admin:
+     - permissions list(user_admin, project_admin)
+TASK_STATUSES:
+  - status: Test
+    full_name: Test_task
+    short_name: TST
+    color: #ffffff
+
+SHOT_STATUSES:
+  - status: Test
+    full_name: Test_task
+    short_name: TST
+    color: #ffffff
+  - status: Another
+    full_name: Another_task
+    short_name: ANTHR
+    color: #ffffff
+
 """
 
 import yaml
 import os.path
 
-from feuze.core.utility import get_user_config_file, logger
+from feuze.core.utility import get_user_config_file, logger, write_info_yaml
 from feuze.core import constant
 
 
@@ -72,8 +90,10 @@ class _UserConfig(object):
         base_path = os.path.dirname(self.config_path)
         if not os.path.exists(base_path):
             os.makedirs(base_path)
-        with open(self.config_path, "w") as fl:
-            yaml.dump(self.__data, fl)
+
+        write_info_yaml(self.config_path, self.__data)
+        # with open(self.config_path, "w") as fl: # TODO remove
+        #     yaml.dump(self.__data, fl)
 
     @property
     def central_project_path(self):
@@ -176,8 +196,10 @@ class _GlobalConfig(object):
         base_path = os.path.dirname(self.config_path)
         if not os.path.exists(base_path):
             os.makedirs(base_path)
-        with open(self.config_path, "w") as fl:
-            yaml.dump(self.__data, fl)
+
+        write_info_yaml(self.config_path, self.__data)
+        # with open(self.config_path, "w") as fl: #TODO remove
+        #     yaml.dump(self.__data, fl)
 
     @property
     def all_media_types(self):

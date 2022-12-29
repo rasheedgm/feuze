@@ -5,12 +5,13 @@ from PySide2.QtWidgets import QApplication, QMainWindow, QInputDialog, QMessageB
 from PySide2.QtGui import QPalette, QColor, QIcon
 from PySide2.QtCore import Qt, Signal, QAbstractTableModel
 
+import feuze.core.media
 from feuze.core.utility import get_user_config_file
 from feuze.ui.widgets import ProjectItem, ReelItem, TypeItem, ShotItem, Placer, ReelShotTree, ScrollArea
 from feuze.ui.base.main_window_ui import Ui_MainWindow
 from feuze.core.fold import get_all_projects, Project, Shot, FootageTypes, Reel
 from feuze.ui.windows import SettingWindow, IngestInputs
-from feuze.core import configs
+from feuze.core import configs, media
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
@@ -158,8 +159,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.scroll_area.clear()
 
         for shot_item in shot_items:
-            for foot in shot_item.shot.get_footages():
-                self.scroll_area.add_widget(Placer(self, foot.latest()))
+
+            for media_ in media.get_all_media(shot_item.shot):
+                self.scroll_area.add_widget(Placer(self, media_.version("latest")))
 
 
         # if not types:

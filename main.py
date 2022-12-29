@@ -1,5 +1,5 @@
 import sys
-from src.ui import main_window
+from feuze.ui import main_window
 from PySide2.QtWidgets import QApplication
 from PySide2.QtGui import QPalette, QColor
 from PySide2.QtCore import Qt

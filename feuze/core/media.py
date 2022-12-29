@@ -17,39 +17,41 @@ from feuze.core.constant import VERSION_PATTERN, Location
 
 from feuze.core.user import Auth, User, current_auth
 
-from src.core.fold import get_fold_regex_pattern
+from feuze.core.fold import get_fold_regex_pattern
 
-# TODO media cannot be modified if its committed, data field is not immutable after create,
+#  TODO media cannot be modified if its committed, data field is not immutable after create,
 #  instead it can be modified until it gets committed
+
 
 def is_media_class(obj):
     if not inspect.isclass(obj):
         return False
     return issubclass(obj, BaseMedia)
 
-
-class Validator():
-    VALIDATORS = {
-        "FileValidator": "file_validator"
-    }
-
-    def __init__(self, validator):
-        self.__validator = validator
-        self.__call__ = self.file_validator
-
-    def __new__(cls, validator=None, *args, **kwargs):
-        cls.__call__ = cls.file_validator
-        return cls
-
-    def __call__(self, *args, **kwargs):
-        print("none")
-
-    def file_validator(self):
-        print("file_validator")
-
-    @classmethod
-    def get(cls):
-        return inspect.getmembers(cls)
+# TODO remove
+#
+# class Validator():
+#     VALIDATORS = {
+#         "FileValidator": "file_validator"
+#     }
+#
+#     def __init__(self, validator):
+#         self.__validator = validator
+#         self.__call__ = self.file_validator
+#
+#     def __new__(cls, validator=None, *args, **kwargs):
+#         cls.__call__ = cls.file_validator
+#         return cls
+#
+#     def __call__(self, *args, **kwargs):
+#         print("none")
+#
+#     def file_validator(self):
+#         print("file_validator")
+#
+#     @classmethod
+#     def get(cls):
+#         return inspect.getmembers(cls)
 
 
 class BaseMedia(BaseFold):
@@ -153,18 +155,22 @@ class BaseMedia(BaseFold):
         else:
             return os.path.exists(self.path)
 
-    def version(self, version=None):
+    def version(self, version=None, suffixes=None, views=None, frame_range=None):
         if not self.exists():
             return None
-        return Version(self, version)
+        return Version(self, version, suffixes=None, views=None, frame_range=None)
 
     def fetch_versions(self):
         version_details = self.get_info("versions")
         if version_details:
             return list(version_details.keys())
 
+    def get_all_versions(self):
+        for version in self.fetch_versions():
+            yield self.version(version=version)
+
     def commit(self):
-        pass
+        pass  # TODO commit media version
 
     @property
     def crumbs(self):
@@ -189,11 +195,19 @@ class DataMedia(BaseMedia):
     pass
 
 
-class MediaFactory(object):
+class MediaFactory(BaseMedia):
     __MEDIA_CLASSES = {k: v for k, v in inspect.getmembers(sys.modules[__name__], is_media_class)}
     __ALL_TYPES = configs.GlobalConfig.all_media_types
 
     def __new__(cls, shot, name, media_type=None):
+        """Create media
+        Args:
+            shot(Shot): shot
+            name(str): name of the media
+            media_type: type_of_media
+        Returns:
+            BaseMedia
+        """
         if not isinstance(shot, Shot):
             raise Exception("{} is not a shot".format(shot))
 
@@ -236,18 +250,18 @@ class MediaFactory(object):
         for key in cls.__ALL_TYPES.keys():
             media_type = cls.get_type(key)
             if media_type.get("file_type") == "SingleFile":
-                filename_regex = "(?P=name)(_(?P<suffix>[\w]+))?_(?P<version>[\w\.]+)\.(?P<ext>[\w]+))?"
+                filename_regex = r"(?P=name)(_(?P<suffix>[\w]+))?_(?P<version>[\w\.]+)\.(?P<ext>[\w]+))?"
             else:
-                filename_regex = "(?P=name)(_(?P<suffix>[\w]+))?_(?P=version)\.(?P<ext>[\w]+))?"
+                filename_regex = r"(?P=name)(_(?P<suffix>[\w]+))?_(?P=version)\.(?P<ext>[\w]+))?"
             pattern_format = cls.get_media_path_format(media_type)
             pattern_format = pattern_format.replace("\\", "\\\\")
             pattern = pattern_format.format(
                 shot_dir=get_fold_regex_pattern(),
                 sub_dir=media_type.get("sub_dir", "").replace("\\", "\\\\"),
-                media_type="(?P<media_type>{0})".format(media_type.get("media_type"), "[\w]+"),
-                name="(?P<name>[\w]+)(",
+                media_type="(?P<media_type>{0})".format(media_type.get("media_type"), r"[\w]+"),
+                name=r"(?P<name>[\w]+)(",
                 filename=filename_regex,
-                version="(?P<version>[\w\.]+))?("
+                version=r"(?P<version>[\w\.]+))?("
             )
             yield media_type.get("media_type"), pattern
 
@@ -276,6 +290,14 @@ class MediaFactory(object):
     def get_all_media_type(cls, filters=None):
         # TODO implement filter
         return list(cls.__ALL_TYPES.keys())
+
+    @classmethod
+    def is_media(cls, obj):
+        """checks if object is media type object or not"""
+        for media_class in cls.__MEDIA_CLASSES.values():
+            if isinstance(obj, media_class):
+                return True
+        return False
 
 
 class Version(object):
@@ -322,15 +344,24 @@ class Version(object):
                 if self._version is None:
                     self._version = self.media.version_format.format(major=int(latest_major) + 1, minor=0)
                     self._major, self._minor = self.get_major_minor(self._version)
+                    self.set_attributes(frame_range)
                 elif self._version == "latest":
                     self._version = self.media.version_format.format(major=int(latest_major), minor=0)
                     self._major, self._minor = self.get_major_minor(self._version)
+                    info = versions_info.get(self._version)
+                    if info:
+                        # set self._suffixes
+                        # set self._views
+                        self.set_attributes_from_info(info)
             else:
                 self._version = self.media.version_format.format(major=1, minor=0)
                 self._major = 1
                 self._minor = 0
 
-            self.set_attributes(frame_range)
+                self.set_attributes(frame_range)
+
+    def __str__(self):
+        return self.version
 
     def set_attributes(self, frame_range=None):
         name_format = "{name}"

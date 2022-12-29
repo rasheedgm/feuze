@@ -1,17 +1,17 @@
 APP_NAME = "feuze"
-SEQ_FORMAT = "{dirname}{basename}{padding}{extension} {range}"
-VERSION_PATTERN = "^[vV]?(?P<versions>[0-9]+)$"
-THREAD_COUNT = 8
+SEQ_FORMAT = "{dirname}{basename}{padding}{extension} {range}" # TODO check if this is used
+VERSION_PATTERN = "^[vV]?(?P<versions>[0-9]+)$" # TODO check if this is used
+THREAD_COUNT = 8 # TODO need better name
 
 
-class VersionType(object):
+class VersionType(object):  # TODO check if this is used
     MULTISEQ = "MultiSequence"
     IMAGESEQ = "ImageSequence"
     SINGLEFILE = "SingleFile"
     QUICKTIME = "QuickTime"
 
 
-class Align:
+class Align:  # TODO check if this is used
     VERTICAL = "Vertical"
     HORIZONTAL = "Horizontal"
     RIGHT = "Right"
@@ -29,10 +29,10 @@ DEFAULT_EXTENSIONS = {
     VersionType.IMAGESEQ: ".exr",
     VersionType.MULTISEQ: ".exr",
     VersionType.SINGLEFILE: ".mov"
-} # TODO can make it by footage/atask type
+} # TODO can make it by footage/atask type , aftet implementing media, do we need this
 
 # Template can include any key in Shot.__dict__ [{project}, {reel}, {shot} , {name}]
-ALL_FOOTAGE_TYPES = {
+ALL_FOOTAGE_TYPES = {  #TODO to be removed using media now
     "Render": {"name": "Render", "short_name": "GR", "sub_dir": "Renders", "template": "{name}"},
     "Plate": {"name": "Plate", "short_name": "P", "sub_dir": "Plates", "template": "{shot}_{name}"},
     "Output": {"name": "Output", "short_name": "OUT", "sub_dir": "Outputs", "template": "{shot}_{name}"},
@@ -43,15 +43,14 @@ ALL_FOOTAGE_TYPES = {
 
 ALL_TASK_TYPES = {
     "Comp": {
-        "name": "Comp",
         "short_name": "CMP",
         "sub_dir": "Comp",
-        "task_names": ["final", "previz", "trailer", "temp"], #TODO do we need this
+        "task_names": ["final", "previz", "trailer", "temp"],
         "validators": [ # TODO work on this, this is validator which is not implemented yet
             {
-                "name": "MediaValidator",
+                "name": "HasMediaAttached",
                 "args": ["Render", "Final"],
-                "kwargs": ""
+                "kwargs": {}
             }
         ]
     },
@@ -68,7 +67,7 @@ MEDIA_TYPES = {
         "file_type": "MultiSequence",  # Sequence | SingleFile | MultiSequence | None
         "extension": None,
         "validators": ["FileValidator", "DataValidator"],
-        "version_format": "v{major:02}" #"v{major:02}.{minor:03}"  # {major} {minor}
+        "version_format": "v{major:0>2}" #"v{major:0>2}.{minor:0>3}"  # {major} {minor}
     },
     "Render": {
         "media_type": "Render",
@@ -82,7 +81,7 @@ MEDIA_TYPES = {
         "short_name": "NK",
         "extension": "nk",
         "file_type": "SingleFile",
-        "version_format": "v{major:02}.{minor:03}"
+        "version_format": "v{major:0>2}.{minor:0>3}"
     }
 }
 
@@ -115,7 +114,7 @@ USER_ROLES = {
     "user": []
 }
 
-# ROLES
+# ROLES TODO for documentation
 """
 task_assign: Can assign or reassign task
 user_admin: Can create delete users

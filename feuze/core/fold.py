@@ -9,8 +9,9 @@ from feuze.core.constant import (
 from feuze.core import configs
 from feuze.core import utility
 from feuze.core.user import current_auth
+from feuze.core.utility import write_info_yaml
 from feuze.core.version import FootageVersion
-
+ #  TODO implement ASSET fold.
 
 class BaseFold(object):
     """Base object for folder structure.
@@ -55,8 +56,10 @@ class BaseFold(object):
 
         info.update(kwargs)
 
-        with open(self._info_path, "w") as info_file:
-            yaml.dump(info, info_file)
+        write_info_yaml(self._info_path, info)
+
+        # with open(self._info_path, "w") as info_file: # TODO remove
+        #     yaml.dump(info, info_file)
 
     def update_info(self, **kwargs):
         if not os.path.exists(self._info_path):
@@ -64,8 +67,9 @@ class BaseFold(object):
         else:
             info = self.info
             info.update(kwargs)
-            with open(self._info_path, "w") as info_file:
-                yaml.dump(info, info_file)
+            write_info_yaml(self._info_path, info)
+            # with open(self._info_path, "w") as info_file: # TODO remove
+            #     yaml.dump(info, info_file)
 
     def get_info(self, attr):
         return self.info.get(attr, None)
@@ -215,7 +219,7 @@ class FootageTypes(object):
         return [cls(t) for t in cls.__ALL_TYPES]
 
 
-class Footage(BaseFold):
+class Footage(BaseFold): # TODO remove
 
     def __init__(self, shot: Shot, name, footage_type="Render"):
         footage_type = footage_type if isinstance(footage_type, FootageTypes) else FootageTypes(footage_type)

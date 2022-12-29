@@ -1,4 +1,5 @@
 import datetime
+import inspect
 import os
 import re
 
@@ -6,9 +7,25 @@ from feuze.core import configs
 from feuze.core.fold import BaseFold, Shot
 from feuze.core.user import User, current_auth
 from feuze.core.version import TaskVersion
+from feuze.core import validator
 
-from src.core.constant import VERSION_PATTERN
+from feuze.core.constant import VERSION_PATTERN
 
+
+"""
+  - Task should be committed before setting status.
+  - Some status can be set without commit
+  - committing should be validated, or setting status should be validated
+    - a task committing means a version locking. this can be done with validation example a comp task can be 
+      committed if output path is attached with task.
+    - above is conflicting when a task goes for review. now as task is already committed may be we can move
+      for review as its but review might require dailies(or any other supporting files) so it wil better validation
+      to run on setting status.
+  - if validating on setting status, there are challenge some task types status may required different attachment.
+  - validation can be ignored in that case, but atleast can keep for cmmiting of task.
+  - only committed task can be set status.
+    
+"""
 
 # TODO versions need commit option which is locking a version
 #  while committing there should be one validation
@@ -22,11 +39,12 @@ class TaskTypes(object):
         f_type = self.__ALL_TYPES.get(name)
         if not f_type:
             raise Exception("Task type is not configured")
-        self.name = f_type["name"]
+        self.name = name
         self.short_name = f_type["short_name"]
         self.sub_dir = f_type["sub_dir"]
         self.task_names = f_type["task_names"]
-        self.validators = f_type["validators"]
+        validators = {k: v for k, v in inspect.getmembers(validator, lambda x: callable(x) )}
+        self.validators = [validators[v.get("name")](*v["args"], **v["kwargs"]) for v in f_type["validators"]]
 
     def __str__(self):
         return self.name
@@ -41,8 +59,9 @@ class Task(BaseFold):
 
     def __init__(self, shot: Shot, name, task_type):
         task_type = task_type if isinstance(task_type, TaskTypes) else TaskTypes(task_type)
+        if name not in task_type.task_names:
+            raise Exception("Name is not configured in task config")
         sub_dir = task_type.sub_dir
-        name = task_type.name
         path = os.path.join(shot.path, sub_dir, name)
         super(Task, self).__init__(name, path)
         self._type = task_type
@@ -53,8 +72,10 @@ class Task(BaseFold):
             latest = self.latest()
             if not latest.committed:
                 raise Exception("Latest version({0}) is not committed".format(latest))
-            kwargs["status"]["version"] = latest.version
-
+            status_dict = kwargs.get("status").pop()
+            print(status_dict)
+            status_dict["version"] = latest.version
+            kwargs["status"].append(status_dict)
         super(Task, self).update_info(**kwargs)
 
     def assign(self, user, comment=None):  # TODO
@@ -214,16 +235,17 @@ class Task(BaseFold):
 
 class Version(object):
     _instances = {}
-    _format = "v{version:02}"
+    _format = "v{version:0>2}"
 
     def __init__(self, task: Task, version=None):
         super(Version, self).__init__()
         self._task = task
         self._created_at = None
         self._created_by = None
-        self._thumbnail = None
+        self._thumbnail = None  # TODO need to work
+        self._modified_at = None
         self._committed = None
-
+        self._comment = None
         if version not in (None, "latest"):
             self._version = self.get_version_int(version)
         else:
@@ -237,19 +259,26 @@ class Version(object):
                 latest = max([self.get_version_int(k) for k in versions_info.keys()])
                 if self._version is None:
                     self._version = latest + 1
+                    self.set_attributes()
                 elif self._version == "latest":
                     self._version = latest
+                    self.set_attributes_from_info(versions_info.get(self.version))
             else:
                 self._version = 1
+                self.set_attributes()
 
-            self.set_attributes()
 
-    def set_attributes(self, frame_range=None):
+
+    def set_attributes(self):
         self._committed = False
         pass #TODO set attribute
 
     def set_attributes_from_info(self, info):
         self._committed = info.get("committed", False)
+        self._created_by = info.get("created_by")
+        self._created_at = info.get("created_at")
+        self._modified_at = info.get("modified_at")
+        self._comment = info.get("comment", "")
         pass #TODO set attribute
 
     def get_version_int(self, version=None):
@@ -284,7 +313,7 @@ class Version(object):
         self._created_at = datetime.datetime.now()
         self._created_by = current_auth().user.name
 
-        self.update_info( **kwargs)
+        self.update_info(**kwargs)
 
     def new(self):
         versions_info = self._task.get_info("versions")
@@ -293,7 +322,9 @@ class Version(object):
 
     def exists(self):
         versions_info = self._task.get_info("versions")
-        return self.version in versions_info.keys()
+        if versions_info:
+            return versions_info.get(self.version) is not None
+        return False
 
     def update_info(self, **kwargs):
 
@@ -310,6 +341,27 @@ class Version(object):
 
     def get_info(self, key):
         return self.info.get(key)
+
+    def commit(self, comment):
+        """commit this version
+        """
+        if not self.exists():
+            raise Exception("Task version does not exits, Please create version first.")
+
+        if self.committed:
+            raise Exception("Task version is already committed!")
+
+        for validator in self.task.type.validators:
+            validator(self)
+
+        self.update_info(committed=True, comment=comment)
+
+        return True
+        # TODO commit this version
+        # - validate before commit
+        # config validation
+        # more to plan
+
 
     @property
     def info(self):

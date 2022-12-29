@@ -3,7 +3,7 @@ import os
 import re
 import shutil
 
-import fileseq
+import fileseq  # TODO optimize imports
 from fileseq import FileSequence, findSequencesOnDisk, PAD_STYLE_HASH1, FrameSet
 
 from feuze.core import configs, utility
@@ -1006,13 +1006,13 @@ class TaskVersion(object):
     # def create_link(self, path, link_to=Location.CENTRAL):
     #     # only link to central
     #     # TODO if signle file then link file or fail
-    #     src = None
+    #     feuze = None
     #     for parent, dirs, files in os.walk(path):
     #         if files:
-    #             src = parent
+    #             feuze = parent
     #             break
-    #     if src:
-    #         utility.create_symlink(src, self.path)
+    #     if feuze:
+    #         utility.create_symlink(feuze, self.path)
     #         self.update_from_path()
     #         self._created_by = current_auth()
     #         self._created_at = datetime.datetime.now()
@@ -1033,14 +1033,14 @@ class TaskVersion(object):
     #     else:
     #         return None
     #
-    #     src = None
+    #     feuze = None
     #     for parent, dirs, files in os.walk(path):
     #         if files:
-    #             src = parent
+    #             feuze = parent
     #             break
     #
-    #     if src:
-    #         src_seqs = findSequencesOnDisk(src)
+    #     if feuze:
+    #         src_seqs = findSequencesOnDisk(feuze)
     #         for path in paths:
     #             if not os.path.exists(path):
     #                 os.makedirs(path)

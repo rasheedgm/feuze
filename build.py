@@ -4,12 +4,12 @@ this_path = os.path.dirname(__file__)
 
 print(this_path)
 
-# for root, dirs, files in os.walk("K:\\feuze\\src"):
+# for root, dirs, files in os.walk("K:\\feuze\\feuze"):
 #     if root.endswith("__pycache__"):
 #         continue
 #     print((root, dirs, files))
 
-src_path = os.path.join(this_path, "src")
+src_path = os.path.join(this_path, "feuze")
 dest_path = os.path.join(this_path, ".build", "feuze")
 all = [
 (src_path, ['core', 'ui'], ['__init__.py']),

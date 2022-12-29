@@ -6,6 +6,8 @@ from feuze.core import utility
 from feuze.core.configs import GlobalConfig, UserConfig
 from cryptography.fernet import Fernet
 
+from feuze.core.utility import write_info_yaml
+
 
 class Role(object):
     __all_roles = GlobalConfig.user_roles
@@ -80,23 +82,34 @@ class User(object):
         self._role = Role(role) if role else None
         self._password = self.get_info("password")
 
+    def __str__(self):
+        return "User({0})".format(self.name)
+
     def create(self, auth, full_name, role, password, position=None, **kwargs):
         if self.exists():
             raise Exception("User already exists")
 
-        self.__is_auth_user_admin(auth)
+        if self.name == "admin":  # TODO can be avoided if default user admin is set
+            role = "admin"
+        else:
+            self.__is_auth_user_admin(auth)
 
         if not os.path.exists(self._path):
             os.makedirs(self._path)
 
-        role = role if role else "user"
+        if isinstance(role, Role):
+            role = role.name
+        elif isinstance(role, str):
+            role = role
+        else:
+            role = "user"
 
         self._create_info_file(
             password=Password.encrypt(password),
             full_name=full_name.title(),
             role=role,
             position=position,
-            created_by=auth.user.name,
+            created_by=auth.user.name if auth else "admin",
             **kwargs
         )
 
@@ -112,8 +125,9 @@ class User(object):
 
         self._info.update(info)
 
-        with open(self._info_path, "w") as info_file:
-            yaml.dump(self._info, info_file)
+        write_info_yaml(self._info_path, self._info)
+        # with open(self._info_path, "w") as info_file: # TODO remove
+        #     yaml.dump(self._info, info_file)
 
     def exists(self):
         return os.path.exists(self._info_path)
@@ -130,8 +144,9 @@ class User(object):
             self._create_info_file(**kwargs)
         else:
             self._info.update(kwargs)
-            with open(self._info_path, "w") as info_file:
-                yaml.dump(self._info, info_file)
+            write_info_yaml(self._info_path, self._info)
+            # with open(self._info_path, "w") as info_file: # TODO remove
+            #     yaml.dump(self._info, info_file)
 
     def __eq__(self, other):
         if isinstance(other, User):
@@ -143,7 +158,7 @@ class User(object):
     def __is_auth_user_admin(auth):
 
         if not isinstance(auth, Auth):
-            raise Exception("User authorisation is require")
+            raise Exception("User authorisation is required")
 
         if not auth or not auth.role.has("user_admin"):
             raise Exception("Not authorised to create")
