@@ -156,9 +156,7 @@ class BaseMedia(BaseFold):
             return os.path.exists(self.path)
 
     def version(self, version=None, suffixes=None, views=None, frame_range=None):
-        if not self.exists():
-            return None
-        return Version(self, version, suffixes=None, views=None, frame_range=None)
+        return Version(self, version, suffixes=suffixes, views=views, frame_range=frame_range)
 
     def fetch_versions(self):
         version_details = self.get_info("versions")
@@ -341,6 +339,7 @@ class Version(object):
         else:
             if versions_info:
                 latest_major, _ = max([self.get_major_minor(k) for k in versions_info.keys()])
+                # _version is None if nothing passed while init
                 if self._version is None:
                     self._version = self.media.version_format.format(major=int(latest_major) + 1, minor=0)
                     self._major, self._minor = self.get_major_minor(self._version)
@@ -353,6 +352,8 @@ class Version(object):
                         # set self._suffixes
                         # set self._views
                         self.set_attributes_from_info(info)
+                else:
+                    self.set_attributes(frame_range)
             else:
                 self._version = self.media.version_format.format(major=1, minor=0)
                 self._major = 1
@@ -728,7 +729,10 @@ class Version(object):
     def frame_range(self):
         seq = self.seq
         if isinstance(seq, list):
-            return seq[0].frameRange()
+            if len(seq):
+                return seq[0].frameRange()
+            else:
+                return "1-1"
         if seq:
             return seq.frameRange()
 

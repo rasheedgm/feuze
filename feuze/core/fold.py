@@ -145,11 +145,11 @@ class Reel(BaseFold):
         shot_names = os.listdir(self.path)
         return [Shot(self._project, self, shot) for shot in shot_names if os.path.isdir(os.path.join(self.path, shot))]
 
-    def create(self, project=None, **kwargs):
+    def create(self, **kwargs):
         auth = current_auth()
         if not auth or not auth.role.has("project_admin"):
             raise Exception("Not authorised to create")
-
+        kwargs.pop("project")
         if not self._project.exists():
             self._project.create()
         BaseFold.create(self, project=self._project.name, **kwargs)
@@ -168,10 +168,13 @@ class Shot(BaseFold):
             path = os.path.join(self._reel.path, name)
         super(Shot, self).__init__(name, path)
 
-    def create(self, project=None, reel=None, **kwargs):
+    def create(self, **kwargs):
         auth = current_auth()
         if not auth or not auth.role.has("project_admin"):
             raise Exception("Not authorised to create")
+
+        kwargs.pop("project")
+        kwargs.pop("reel")
 
         if not self._reel.exists():
             self._reel.create()
@@ -194,7 +197,7 @@ class Shot(BaseFold):
         return self._reel
 
 
-class FootageTypes(object):
+class FootageTypes(object):  # TODO Use media
     __ALL_TYPES = configs.GlobalConfig.all_footage_types
 
     def __init__(self, name):

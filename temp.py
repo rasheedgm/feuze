@@ -1,6 +1,6 @@
 from feuze.core.attachment import AttachmentManager, Attachment
 from feuze.core.fold import Shot
-from feuze.core.media import MediaFactory
+from feuze.core.media import MediaFactory, media_from_path
 from feuze.core.status import StatusManager
 from feuze.core.task import Task
 from feuze.core.user import User, Auth, Role
@@ -20,6 +20,17 @@ user_role = Role("user")
 
 # # user.create(auth=None, full_name="Admin", role="admin", password="admin")
 shot = Shot(project="XYZ", reel="REEL01", name="SHOT02")
+
+# create media object
+nuke_file = MediaFactory(shot=shot, name="Final_Comp", media_type="NukeFile")
+
+# create media version object, from media version object you get file potential paths
+nuke_file_version = nuke_file.version()
+# above will create version object potentially new version, if no version recorded in info
+# print(nuke_file_version.filepath)
+# >>> ..\Projects\XYZ\01_Shots\REEL01\SHOT02\NukeFiles\NukeFile\Final_Comp\Final_Comp_v01.000.nk
+m = media_from_path(r"C:\Users\gmabd\Documents\Feuze\Projects\XYZ\01_Shots\REEL01\SHOT02\NukeFiles\NukeFile\Final_Comp")
+print(m.media_type)
 
 #
 # media = MediaFactory(shot, name="comp", media_type="Render")w
